@@ -1,28 +1,75 @@
-function scrapeAndWriteOneMathPage(pageNumber) {
+function scrapeOneMathPageIncludingLink(pageNumber) {
   let meirinkanMathCategoryUrl = makeMathCategoryUrlFromNumber(pageNumber);
   let html = UrlFetchApp.fetch(meirinkanMathCategoryUrl).getContentText();
   let parsedHtml = Parser.data(html);
   
-  let dlTags = parsedHtml.from('<dl').to("</dl>").iterate();
-  Logger.log(dlTags.length);
+  let divTags = parsedHtml.from('<div id="result_list_box').to("</a>").iterate();
+  Logger.log(divTags.length);
   let valuesArray = []
-  for(let i=0; i<dlTags.length; i++){
-    let infoArray = dlTagToInfoArray(dlTags[i]);
+  for(let i=0; i<divTags.length; i++){
+    let div = Parser.data(divTags[i]);
+    let link = div.from('href="').to('"').build();
+    let dlTag = div.from('<dl').to("</dl>").build();
+    let infoArray = dlTagToInfoArray(dlTag).concat([link]);
     valuesArray.push(infoArray);
     Logger.log(infoArray);
   }
   Logger.log(valuesArray);
-  writeValuesArrayToSpreadSheet(valuesArray);
+  return valuesArray
+  
+}
+
+
+function checkNewArrivals(){
+  const mathBooksInfoArray = scrapeOneMathPageIncludingLink(1);
+  const newestFiftyBooks = getNameArrayFromSheet(50);
+  
+  var newArrivalNo;
+  for(newArrivalNo = 0; newArrivalNo<mathBooksInfoArray.length; newArrivalNo++){
+    let isFound = false;
+    for(let i=0; i<newestFiftyBooks.length; i++){
+      if(mathBooksInfoArray[newArrivalNo]==newestFiftyBooks[i][0]){
+        isFound = True;
+        break;
+      }
+    }
+    if(isFound){break}
+  }
+  const newArrivalBooks = mathBooksInfoArray.slice(0,newArrivalNo);
+  appendNewArrayToTopOfSheet(newArrivalBooks);
+}
+
+
+function appendNewArrayToTopOfSheet(newValues){
+  const spreadsheetId = PropertiesService.getScriptProperties().getProperty("spreadsheetId");
+  const spreadsheet = SpreadsheetApp.openById(spreadsheetId);
+  const sheet = spreadsheet.getSheetByName('数学書');
+  
+  const lastRow = sheet.getLastRow();
+  let existedValues = sheet.getRange(2, 2, lastRow-1, 9).getValues();
+  sheet.getRange(newValues.length+2, 2, existedValues.length, 9).setValues(existedValues);
+  sheet.getRange(2, 2, newValues.length, 9).setValues(newValues);
+}
+
+
+
+
+function getNameArrayFromSheet(num){
+  const spreadsheetId = PropertiesService.getScriptProperties().getProperty("spreadsheetId");
+  const spreadsheet = SpreadsheetApp.openById(spreadsheetId);
+  const sheet = spreadsheet.getSheetByName('数学書');
+  let rangeToRead = sheet.getRange(1, 2, num, 1);
+  return rangeToRead.getValues();
 }
 
 
 function scrapeAllMathPage(){
   for(let i=70; i<81; i++){
-    // scrapeAndWriteOneMathPageInclud(i);
-    scrapeAndWriteOneMathPageIncludingLink(i);
+    let valuesArray = scrapeOneMathPageIncludingLink(i);
+    writeValuesArrayToSpreadSheet(valuesArray);
     Utilities.sleep(10000);
-    }
   }
+}
      
 var example = 'id="result_list__detail--613742"> \
                  <dt id="result_list__name--613742" class="item_price_0">コミュニケーションの数学的理論</dt> \
@@ -69,27 +116,6 @@ function dlTagToInfoArray(dlTag){
 
 
 
-function scrapeAndWriteOneMathPageIncludingLink(pageNumber) {
-  let meirinkanMathCategoryUrl = makeMathCategoryUrlFromNumber(pageNumber);
-  let html = UrlFetchApp.fetch(meirinkanMathCategoryUrl).getContentText();
-  let parsedHtml = Parser.data(html);
-  
-  let divTags = parsedHtml.from('<div id="result_list_box').to("</a>").iterate();
-  Logger.log(divTags.length);
-  let valuesArray = []
-  for(let i=0; i<divTags.length; i++){
-    let div = Parser.data(divTags[i]);
-    let link = div.from('href="').to('"').build();
-    let dlTag = div.from('<dl').to("</dl>").build();
-    let infoArray = dlTagToInfoArray(dlTag).concat([link]);
-    valuesArray.push(infoArray);
-    Logger.log(infoArray);
-  }
-  Logger.log(valuesArray);
-  writeValuesArrayToSpreadSheet(valuesArray);
-}
-
-
 
 function makeMathCategoryUrlFromNumber(pageNum){
   const meirinkanMathCategoryUrl = "https://www.meirinkanshoten.com/products/list?mode=&category_id=20000&name=&pageno={pageNumber}&disp_number=50&orderby=2".replace("{pageNumber}",pageNum);
@@ -103,6 +129,6 @@ function writeValuesArrayToSpreadSheet(valuesArray){
   const spreadsheet = SpreadsheetApp.openById(spreadsheetId);
   const sheet = spreadsheet.getSheetByName('数学書');
   const lastRow = sheet.getLastRow();
-  let rangeToWrite = sheet.getRange(lastRow+1, 1, valuesArray.length, 9);
+  let rangeToWrite = sheet.getRange(lastRow+1, 2, valuesArray.length, 9);
   rangeToWrite.setValues(valuesArray);
 }
