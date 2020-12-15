@@ -1,6 +1,11 @@
-function scrapeOneMathPageIncludingLink(pageNumber) {
-  let meirinkanMathCategoryUrl = makeMathCategoryUrlFromNumber(pageNumber);
-  let html = UrlFetchApp.fetch(meirinkanMathCategoryUrl).getContentText();
+function scrapeOnePageIncludingLink(pageNumber, isMath) {
+  let meirinkanCategoryUrl;
+  if(isMath){
+    meirinkanCategoryUrl = makeMathCategoryUrlFromNumber(pageNumber);
+  }else{
+    meirinkanCategoryUrl = makePhysicsCategoryUrlFromNumber(pageNumber);
+  }
+  let html = UrlFetchApp.fetch(meirinkanCategoryUrl).getContentText();
   let parsedHtml = Parser.data(html);
   
   let divTags = parsedHtml.from('<div id="result_list_box').to("</a>").iterate();
@@ -21,8 +26,8 @@ function scrapeOneMathPageIncludingLink(pageNumber) {
 
 
 function checkNewArrivals(){
-  const mathBooksInfoArray = scrapeOneMathPageIncludingLink(1);
-  const newestFiftyBooks = getNameArrayFromSheet(50);
+  const mathBooksInfoArray = scrapeOnePageIncludingLink(1,true);
+  const newestFiftyBooks = getNameArrayFromSheet(50, '数学書');
   
   var newArrivalNo;
   for(let i = 0; i<mathBooksInfoArray.length; i++){
@@ -38,6 +43,7 @@ function checkNewArrivals(){
       break
     }
   }
+  giveNumberOnSheet('数学書');
   
   var newArrivalBooks = mathBooksInfoArray.slice(0,newArrivalNo);
   
@@ -72,29 +78,64 @@ function appendNewArrayToTopOfSheet(newValues){
   const sheet = spreadsheet.getSheetByName('数学書');
   
   const lastRow = sheet.getLastRow();
-  let existedValues = sheet.getRange(2, 2, lastRow-1, 9).getValues();
-  sheet.getRange(newValues.length+2, 2, existedValues.length, 9).setValues(existedValues);
+  let existedValues = sheet.getRange(2, 2, lastRow-1, 13).getValues();
+  sheet.getRange(newValues.length+2, 2, existedValues.length, 13).setValues(existedValues);
   sheet.getRange(2, 2, newValues.length, 9).setValues(newValues);
 }
 
 
 
 
-function getNameArrayFromSheet(num){
+function getNameArrayFromSheet(num, pageName){
   const spreadsheetId = PropertiesService.getScriptProperties().getProperty("spreadsheetId");
   const spreadsheet = SpreadsheetApp.openById(spreadsheetId);
-  const sheet = spreadsheet.getSheetByName('数学書');
+  const sheet = spreadsheet.getSheetByName(pageName);
   let rangeToRead = sheet.getRange(2, 2, num, 1);
   return rangeToRead.getValues();
 }
 
 
 function scrapeAllMathPage(){
-  for(let i=70; i<81; i++){
-    let valuesArray = scrapeOneMathPageIncludingLink(i);
-    writeValuesArrayToSpreadSheet(valuesArray);
+  for(let i=1; i<81; i++){
+    let valuesArray = scrapeOnePageIncludingLink(i, true);
+    writeValuesArrayToSpreadSheet(valuesArray,'数学書');
     Utilities.sleep(10000);
   }
+  giveNumberOnSheet('数学書');
+}
+
+
+function scrapeAllPhysicsPage(){
+  for(let i=33; i<34; i++){
+    let valuesArray = scrapeOnePageIncludingLink(i, false);
+    writeValuesArrayToSpreadSheet(valuesArray,'物理学書');
+    Utilities.sleep(5000);
+  }
+  giveNumberOnSheet('物理学書');
+}
+
+
+
+function giveNumberOnSheet(sheetName){
+  // sheetName = "数学書"
+  const spreadsheetId = PropertiesService.getScriptProperties().getProperty("spreadsheetId");
+  let spreadsheet = SpreadsheetApp.openById(spreadsheetId);
+  let sheet = spreadsheet.getSheetByName(sheetName);
+  let lastRow = sheet.getLastRow();
+  
+  let rangeToWrite = sheet.getRange(2, 1, lastRow-1);
+  rangeToWrite.clearContent();
+  
+  lastRow = sheet.getLastRow();
+  rangeToWrite = sheet.getRange(2, 1, lastRow-1);
+  
+  const arrayToBeWritten = []
+  for(let i=0; i<lastRow-1; i++ ){
+    arrayToBeWritten[i] = [i+1]
+  }
+  
+  rangeToWrite.setValues(arrayToBeWritten)
+  
 }
 
 function dlTagToInfoArray(dlTag){
@@ -138,12 +179,16 @@ function makeMathCategoryUrlFromNumber(pageNum){
   return meirinkanMathCategoryUrl;
 }
 
+function makePhysicsCategoryUrlFromNumber(pageNum){
+  const meirinkanMathCategoryUrl = "https://www.meirinkanshoten.com/products/list?mode=&category_id=30000&name=&pageno={pageNumber}&disp_number=50&orderby=2".replace("{pageNumber}",pageNum);
+  return meirinkanMathCategoryUrl;
+}
 
 
-function writeValuesArrayToSpreadSheet(valuesArray){
+function writeValuesArrayToSpreadSheet(valuesArray, sheetName){
   const spreadsheetId = PropertiesService.getScriptProperties().getProperty("spreadsheetId");
   const spreadsheet = SpreadsheetApp.openById(spreadsheetId);
-  const sheet = spreadsheet.getSheetByName('数学書');
+  const sheet = spreadsheet.getSheetByName(sheetName);
   const lastRow = sheet.getLastRow();
   let rangeToWrite = sheet.getRange(lastRow+1, 2, valuesArray.length, 9);
   rangeToWrite.setValues(valuesArray);
